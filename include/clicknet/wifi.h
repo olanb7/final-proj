@@ -49,6 +49,8 @@ struct click_wifi_extra {
   uint8_t virt_col;
   uint8_t retries;
   uint16_t len;
+
+  u_int64_t tsft;	// added by olan
 } CLICK_SIZE_PACKED_ATTRIBUTE;
 
 

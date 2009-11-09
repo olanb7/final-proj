@@ -29,6 +29,36 @@ CLICK_DECLS
 
 #define NUM_RADIOTAP_ELEMENTS 18
 
+// generic? radiotap rx header (MADWIFI is using this)
+
+struct ath_rx_radiotap_header {
+	struct ieee80211_radiotap_header wr_ihdr;
+	u_int64_t wr_tsft;	//Value in microseconds of the MAC's 64-bit 802.11 Time
+	u_int8_t	wr_flags;
+	u_int8_t	wr_rate;
+	u_int16_t wr_chan_freq;
+	u_int16_t wr_chan_flags;
+	int8_t		wr_dbm_antsignal;
+	int8_t		wr_dbm_antnoise;
+	u_int8_t	wr_antenna;
+	u_int8_t	wr_antsignal;
+}CLICK_SIZE_PACKED_ATTRIBUTE;
+
+
+// generic? radiotap tx feedback header (MADWIFI is using this)
+
+struct ath_tx_radiotap_header {
+	struct ieee80211_radiotap_header wt_ihdr; 
+	u_int64_t wt_tsft;  //Value in microseconds of the MAC's 64-bit 802.11 Time
+	u_int8_t	wt_flags;	
+	u_int8_t	wt_rate;
+	u_int8_t	wt_antenna;
+	u_int8_t	wt_pad;
+	u_int16_t wt_txflags;
+	u_int8_t	wt_dataretries;
+}CLICK_SIZE_PACKED_ATTRIBUTE;
+
+
 static const int radiotap_elem_to_bytes[NUM_RADIOTAP_ELEMENTS] =
 	{8, /* IEEE80211_RADIOTAP_TSFT */
 	 1, /* IEEE80211_RADIOTAP_FLAGS */
@@ -120,9 +150,29 @@ Packet *
 RadiotapDecap::simple_action(Packet *p)
 {
 	struct ieee80211_radiotap_header *th = (struct ieee80211_radiotap_header *) p->data();
+	struct ath_rx_radiotap_header *rh = (struct ath_rx_radiotap_header *) p->data();
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
+
 	if (rt_check_header(th, p->length())) {
+		memset((void*)ceh, 0, sizeof(struct click_wifi_extra));
 		ceh->magic = WIFI_EXTRA_MAGIC;
+		ceh->tsft = (u_int64_t) rh->wr_tsft;
+
+		if (rt_el_present(th, IEEE80211_RADIOTAP_FLAGS)) {
+			u_int8_t flags = *((u_int8_t *) rt_el_offset(th, IEEE80211_RADIOTAP_FLAGS));
+			if (flags & IEEE80211_RADIOTAP_F_DATAPAD) {
+			     ceh->pad = 1;
+			}
+			if (flags & 0x40) {	// crc check here
+			     ceh->flags |= WIFI_EXTRA_RX_ERR;
+			}
+			if (!(flags & 0x10)) {	// crc check here
+			     ceh->flags |= WIFI_EXTRA_RX_MORE;
+			}
+			if (flags & IEEE80211_RADIOTAP_F_FCS) {
+			     p->take(4);
+			}
+		}
 
 		if (rt_el_present(th, IEEE80211_RADIOTAP_RATE)) {
 			ceh->rate = *((u_int8_t *) rt_el_offset(th, IEEE80211_RADIOTAP_RATE));
@@ -140,27 +190,25 @@ RadiotapDecap::simple_action(Packet *p)
 		if (rt_el_present(th, IEEE80211_RADIOTAP_DB_ANTNOISE))
 			ceh->silence = *((u_int8_t *) rt_el_offset(th, IEEE80211_RADIOTAP_DB_ANTNOISE));
 
-		if (rt_el_present(th, IEEE80211_RADIOTAP_RX_FLAGS)) {
+		if (rt_el_present(th, IEEE80211_RADIOTAP_RX_FLAGS)) {		// obsolete, CRC check now provided above.
 			u_int16_t flags = le16_to_cpu(*((u_int16_t *) rt_el_offset(th, IEEE80211_RADIOTAP_RX_FLAGS)));
-			if (flags & IEEE80211_RADIOTAP_F_RX_BADFCS)
+			if (flags & IEEE80211_RADIOTAP_F_RX_BADFCS) {
 				ceh->flags |= WIFI_EXTRA_RX_ERR;
+			}
 		}
 
-		if (rt_el_present(th, IEEE80211_RADIOTAP_TX_FLAGS)) {
+		if (rt_el_present(th, IEEE80211_RADIOTAP_TX_FLAGS)) {	
 			u_int16_t flags = le16_to_cpu(*((u_int16_t *) rt_el_offset(th, IEEE80211_RADIOTAP_TX_FLAGS)));
 			ceh->flags |= WIFI_EXTRA_TX;
 			if (flags & IEEE80211_RADIOTAP_F_TX_FAIL)
 				ceh->flags |= WIFI_EXTRA_TX_FAIL;
-
-			if (flags & IEEE80211_RADIOTAP_F_FCS) {
-				p->take(4);
-			}
 		}
 
 		if (rt_el_present(th, IEEE80211_RADIOTAP_DATA_RETRIES))
 			ceh->retries = *((u_int8_t *) rt_el_offset(th, IEEE80211_RADIOTAP_DATA_RETRIES));
 
 		p->pull(th->it_len);
+		p->set_mac_header(p->data());  // reset mac-header pointer
 	}
 
   return p;
