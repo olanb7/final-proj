@@ -30,7 +30,7 @@ gmake=make
 
 verbose=""
 elem2=""
-default_provisions="i686 i386 i586 int64 linux linux_2_6 wifi"
+default_provisions="i686 i386 i586 analysis int64 linux linux_2_6 wifi"
 driver_provisions=" userlevel"
 
 trap "exit 1" HUP

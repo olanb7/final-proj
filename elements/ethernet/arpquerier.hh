@@ -70,8 +70,12 @@ at a time.  Default is 0, which means unlimited.
 
 =item TIMEOUT
 
-Time in seconds.  Amount of time before an ARP entry expires.  Defaults to
-1 minute.
+Amount of time before an ARP entry expires.  Defaults to 5 minutes.
+
+=item POLL_TIMEOUT
+
+Amount of time after which ARPQuerier will start polling for renewal.  0 means
+don't poll.  Defaults to one minute.
 
 =item BROADCAST
 
@@ -79,6 +83,12 @@ IP address.  Local broadcast IP address.  Packets sent to this address will be
 forwarded to Ethernet address FF-FF-FF-FF-FF-FF.  Defaults to the local
 broadcast address that can be extracted from the IP address's corresponding
 prefix, if any.
+
+=item BROADCAST_POLL
+
+Boolean.  If true, then send broadcast ARP polls (where an entry is about to
+expire, but hasn't expired yet).  The default is to send such polls unicast to
+the known Ethernet address.  Defaults to false.
 
 =back
 
@@ -100,34 +110,42 @@ their next packet annotations.
 
 ARPQuerier will send at most 10 queries a second for any IP address.
 
-=h ipaddr read/write
+=h ipaddr rw
 
 Returns or sets the ARPQuerier's source IP address.
 
-=h broadcast read-only
+=h broadcast r
 
 Returns the ARPQuerier's IP broadcast address.
 
-=h table read-only
+=h table r
 
 Returns a textual representation of the ARP table.  See ARPTable's table
 handler.
 
-=h stats read-only
+=h stats r
 
 Returns textual statistics (queries and drops).
 
-=h queries read-only
+=h queries r
 
 Returns the number of queries sent.
 
-=h responses read-only
+=h responses r
 
 Returns the number of responses received.
 
-=h drops read-only
+=h drops r
 
 Returns the number of packets dropped.
+
+=h count r
+
+Returns the number of entries in the ARP table.
+
+=h length r
+
+Returns the number of packets stored in the ARP table.
 
 =h insert w
 
@@ -173,6 +191,8 @@ class ARPQuerier : public Element { public:
     EtherAddress _my_en;
     IPAddress _my_ip;
     IPAddress _my_bcast_ip;
+    uint32_t _poll_timeout_j;
+    int _broadcast_poll;
 
     // statistics
     atomic_uint32_t _arp_queries;
@@ -180,8 +200,9 @@ class ARPQuerier : public Element { public:
     atomic_uint32_t _arp_responses;
     atomic_uint32_t _broadcasts;
     bool _my_arpt;
+    bool _zero_warned;
 
-    void send_query_for(Packet *p);
+    void send_query_for(const Packet *p, bool ether_dhost_valid);
 
     void handle_ip(Packet *p, bool response);
     void handle_response(Packet *p);
@@ -192,7 +213,8 @@ class ARPQuerier : public Element { public:
     static String read_handler(Element *, void *);
     static int write_handler(const String &, Element *, void *, ErrorHandler *);
 
-    enum { h_table, h_table_xml, h_stats, h_insert, h_delete, h_clear };
+    enum { h_table, h_table_xml, h_stats, h_insert, h_delete, h_clear,
+	   h_count, h_length };
 
 };
 

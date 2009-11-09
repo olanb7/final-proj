@@ -951,7 +951,7 @@ configure:11157: $? = 0
 configure:11172: result: yes
 configure:11191: checking for library containing clock_gettime
 configure:11232: g++ -W -Wall  -o conftest -g -O2   conftest.cpp  >&5
-/tmp/cc0dVo0Z.o: In function `main':
+/tmp/ccM1RorD.o: In function `main':
 /home/olan/click/conftest.cpp:75: undefined reference to `clock_gettime'
 collect2: ld returned 1 exit status
 configure:11239: $? = 1
@@ -1278,7 +1278,7 @@ configure:11912: $? = 0
 configure:11934: result: yes
 configure:11951: checking for kqueue
 configure:12007: g++ -W -Wall  -o conftest -g -O2   conftest.cpp  >&5
-/tmp/ccH6Qu4j.o: In function `main':
+/tmp/cc07U5sF.o: In function `main':
 /home/olan/click/conftest.cpp:105: undefined reference to `kqueue'
 collect2: ld returned 1 exit status
 configure:12014: $? = 1
@@ -1404,7 +1404,7 @@ configure:12243: checking for dlfcn.h
 configure:12252: result: yes
 configure:12269: checking for dlopen
 configure:12325: g++ -W -Wall  -o conftest -g -O2   conftest.cpp  >&5
-/tmp/ccG6yljR.o: In function `main':
+/tmp/ccyOWIyr.o: In function `main':
 /home/olan/click/conftest.cpp:106: undefined reference to `dlopen'
 collect2: ld returned 1 exit status
 configure:12332: $? = 1
@@ -4243,6 +4243,7 @@ config.status:904: creating tools/click-install/Makefile
 config.status:904: creating include/click/config.h
 config.status:1120: include/click/config.h is unchanged
 config.status:904: creating include/click/pathvars.h
+config.status:1120: include/click/pathvars.h is unchanged
 config.status:904: creating include/click/config-bsdmodule.h
 config.status:1120: include/click/config-bsdmodule.h is unchanged
 config.status:904: creating include/click/config-linuxmodule.h
@@ -4494,7 +4495,7 @@ PROPER_INCLUDES=''
 PROPER_LIBS=''
 PTHREAD_LIBS=''
 RANLIB='ranlib'
-SHELL='/bin/bash'
+SHELL='/bin/sh'
 SOCKET_LIBS=''
 SOSUFFIX='so'
 STRIP='strip'
@@ -4518,7 +4519,7 @@ datadir='/usr/local/share'
 datarootdir='/usr/local/share'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
 dvidir='${docdir}'
-element_groups=' app aqm ethernet icmp ip local standard tcpudp threads wifi'
+element_groups=' analysis app aqm ethernet icmp ip local standard tcpudp test threads wifi'
 exec_prefix='${prefix}'
 freebsd_includedir='/usr/include'
 freebsd_srcdir='NONE'
@@ -4544,7 +4545,7 @@ pdfdir='${docdir}'
 perl5='perl'
 prefix='/usr/local'
 program_transform_name='s,x,x,'
-provisions='i686 i386 i586 int64 linux linux_2_6 wifi'
+provisions='i686 i386 i586 analysis int64 linux linux_2_6 wifi'
 psdir='${docdir}'
 sbindir='/usr/local/sbin'
 sharedstatedir='${prefix}/com'

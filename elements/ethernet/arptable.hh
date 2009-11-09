@@ -43,7 +43,7 @@ a time.  Default is zero, which means unlimited.
 =item TIMEOUT
 
 Time value.  The amount of time after which an ARP entry will expire.  Default
-is 5 minutes.  Zero means ARP entries never expires.
+is 5 minutes.  Zero means ARP entries never expire.
 
 =h table r
 
@@ -68,6 +68,14 @@ Delete an entry from the table.  The string should consist of an IP address.
 
 Clear the table, deleting all entries.
 
+=h count r
+
+Return the number of entries in the table.
+
+=h length r
+
+Return the number of packets stored in the table.
+
 =a
 
 ARPQuerier
@@ -86,7 +94,7 @@ class ARPTable : public Element { public:
     void add_handlers();
     void cleanup(CleanupStage);
 
-    int lookup(IPAddress ip, EtherAddress *eth, click_jiffies_t poll_jiffies);
+    int lookup(IPAddress ip, EtherAddress *eth, uint32_t poll_timeout_j);
     EtherAddress lookup(IPAddress ip);
     IPAddress reverse_lookup(const EtherAddress &eth);
     int insert(IPAddress ip, const EtherAddress &en, Packet **head = 0);
@@ -106,17 +114,23 @@ class ARPTable : public Element { public:
 	_entry_capacity = entry_capacity;
     }
     Timestamp timeout() const {
-	return Timestamp::make_jiffies(_expire_jiffies);
+	return Timestamp::make_jiffies(_timeout_j);
     }
     void set_timeout(const Timestamp &timeout) {
-	if (timeout.sec() < 0
-	    || (click_jiffies_t) timeout.sec() > (click_jiffies_t) -1 / CLICK_HZ)
-	    _expire_jiffies = 0;
+	if ((uint32_t) timeout.sec() >= (uint32_t) 0xFFFFFFFFU / CLICK_HZ)
+	    _timeout_j = 0;
 	else
-	    _expire_jiffies = timeout.jiffies();
+	    _timeout_j = timeout.jiffies();
     }
+
     uint32_t drops() const {
 	return _drops;
+    }
+    uint32_t count() const {
+	return _entry_count;
+    }
+    uint32_t length() const {
+	return _packet_count;
     }
 
     void run_timer(Timer *);
@@ -132,8 +146,8 @@ class ARPTable : public Element { public:
 	ARPEntry *_hashnext;
 	EtherAddress _eth;
 	bool _unicast;
-	click_jiffies_t _live_jiffies;
-	click_jiffies_t _poll_jiffies;
+	click_jiffies_t _live_at_j;
+	click_jiffies_t _polled_at_j;
 	Packet *_head;
 	Packet *_tail;
 	List_member<ARPEntry> _age_link;
@@ -142,12 +156,12 @@ class ARPTable : public Element { public:
 	key_const_reference hashkey() const {
 	    return _ip;
 	}
-	bool expired(click_jiffies_t now, uint32_t expire_jiffies) const {
-	    return click_jiffies_less(_live_jiffies + expire_jiffies, now)
-		&& expire_jiffies;
+	bool expired(click_jiffies_t now, uint32_t timeout_j) const {
+	    return click_jiffies_less(_live_at_j + timeout_j, now)
+		&& timeout_j;
 	}
-	bool unicast(click_jiffies_t now, uint32_t expire_jiffies) const {
-	    return _unicast && !expired(now, expire_jiffies);
+	bool unicast(click_jiffies_t now, uint32_t timeout_j) const {
+	    return _unicast && !expired(now, timeout_j);
 	}
 	ARPEntry(IPAddress ip)
 	    : _ip(ip), _hashnext(), _eth(EtherAddress::make_broadcast()),
@@ -167,7 +181,7 @@ class ARPTable : public Element { public:
     atomic_uint32_t _packet_count;
     uint32_t _entry_capacity;
     uint32_t _packet_capacity;
-    uint32_t _expire_jiffies;
+    uint32_t _timeout_j;
     atomic_uint32_t _drops;
     SizedHashAllocator<sizeof(ARPEntry)> _alloc;
     Timer _expire_timer;
@@ -178,18 +192,18 @@ class ARPTable : public Element { public:
 };
 
 inline int
-ARPTable::lookup(IPAddress ip, EtherAddress *eth, click_jiffies_t poll_jiffies)
+ARPTable::lookup(IPAddress ip, EtherAddress *eth, uint32_t poll_timeout_j)
 {
     _lock.acquire_read();
     int r = -1;
     if (Table::iterator it = _table.find(ip)) {
 	click_jiffies_t now = click_jiffies();
-	if (!it->expired(now, _expire_jiffies)) {
+	if (!it->expired(now, _timeout_j)) {
 	    *eth = it->_eth;
-	    if (poll_jiffies
-		&& !click_jiffies_less(now, it->_live_jiffies + poll_jiffies)
-		&& !click_jiffies_less(now, it->_poll_jiffies + (CLICK_HZ / 10))) {
-		it->_poll_jiffies = now;
+	    if (poll_timeout_j
+		&& !click_jiffies_less(now, it->_live_at_j + poll_timeout_j)
+		&& !click_jiffies_less(now, it->_polled_at_j + (CLICK_HZ / 10))) {
+		it->_polled_at_j = now;
 		r = 1;
 	    } else
 		r = 0;

@@ -52,9 +52,10 @@ CLICK_DECLS
 
 
 ARPPrint::ARPPrint()
+    : _label(), _print_timestamp(true), _print_ether(false)
 {
 #if CLICK_USERLEVEL
-  _outfile = 0;
+    _outfile = 0;
 #endif
 }
 
@@ -65,22 +66,20 @@ ARPPrint::~ARPPrint()
 int
 ARPPrint::configure(Vector<String> &conf, ErrorHandler *errh)
 {
-  _label = "";
-  bool print_time = true;
-  String channel;
+    String channel;
 
-  if (cp_va_kparse(conf, this, errh,
-		   "LABEL", cpkP, cpString, &_label,
-		   "TIMESTAMP", 0, cpBool, &print_time,
+    if (cp_va_kparse(conf, this, errh,
+		     "LABEL", cpkP, cpString, &_label,
+		     "TIMESTAMP", 0, cpBool, &_print_timestamp,
+		     "ETHER", 0, cpBool, &_print_ether,
 #if CLICK_USERLEVEL
-		   "OUTFILE", 0, cpFilename, &_outfilename,
+		     "OUTFILE", 0, cpFilename, &_outfilename,
 #endif
-		   cpEnd) < 0)
-    return -1;
+		     cpEnd) < 0)
+	return -1;
 
-  _print_timestamp = print_time;
-  _errh = router()->chatter_channel(channel);
-  return 0;
+    _errh = router()->chatter_channel(channel);
+    return 0;
 }
 
 int
@@ -121,6 +120,17 @@ ARPPrint::simple_action(Packet *p)
 	sa << _label << ": ";
     if (_print_timestamp)
 	sa << p->timestamp_anno() << ": ";
+
+    if (_print_ether) {
+	const unsigned char *x = p->mac_header();
+	if (!x)
+	    x = p->data();
+	if (x + 14 <= p->network_header() && x + 14 <= p->end_data()) {
+	    const click_ether *ethh = reinterpret_cast<const click_ether *>(x);
+	    sa << EtherAddress(ethh->ether_shost) << " > "
+	       << EtherAddress(ethh->ether_dhost) << ": ";
+	}
+    }
 
     if (p->network_length() < (int) sizeof(click_arp))
 	sa << "truncated-arp (" << p->network_length() << ")";

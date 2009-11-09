@@ -89,9 +89,15 @@ failure. Default is true.
 
 =back
 
+The PORT argument for TCP ControlSockets can also be an integer followed by a
+plus sign, as in "ControlSocket(TCP, 41930+)".  This means that the
+ControlSocket should bind on some port I<greater than or equal to> PORT.  If
+PORT itself is in use, ControlSocket will try several nearby ports before
+giving up.  This can be useful in tests.
+
 =head1 SERVER COMMANDS
 
-The server currently supports the following six commands. Many of the commands
+Many server commands
 take a I<handler> argument. These arguments name handlers, and take one of
 three forms: C<I<elementname>.I<handlername>> names a particular element's
 handler; C<I<elementnumber>.I<handlername>> also names an element handler, but
@@ -204,6 +210,15 @@ ControlSocket is only available in user-level processes.
 
   ControlSocket(unix, /tmp/clicksocket);
 
+=h port r
+
+Returns the ControlSocket's port number.  Only available for TYPE TCP.
+
+=h filename r
+
+Returns the ControlSocket's UNIX socket filename.  Only available for TYPE
+UNIX.
+
 =a ChatterSocket, KernelHandlerProxy */
 
 class ControlSocket : public Element { public:
@@ -213,10 +228,12 @@ class ControlSocket : public Element { public:
 
   const char *class_name() const	{ return "ControlSocket"; }
 
-  int configure(Vector<String> &conf, ErrorHandler *);
-  int initialize(ErrorHandler *);
-  void cleanup(CleanupStage);
-  void take_state(Element *, ErrorHandler *);
+    int configure(Vector<String> &conf, ErrorHandler *);
+    int initialize(ErrorHandler *);
+    void cleanup(CleanupStage);
+    Element *hotswap_element() const;
+    void take_state(Element *, ErrorHandler *);
+    void add_handlers();
 
   void selected(int);
 

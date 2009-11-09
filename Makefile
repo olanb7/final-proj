@@ -1,7 +1,7 @@
 # Warning: this file must be usable by regular make
 # (unlike the Makefiles in subdirectories).
 
-SHELL = /bin/bash
+SHELL = /bin/sh
 
 
 PACKAGE = click
@@ -24,7 +24,7 @@ INSTALL_DATA_IF_CHANGED = $(INSTALL) -C -m 644
 mkinstalldirs = $(conf_auxdir)/mkinstalldirs
 
 EXTRA_PROVIDES =
-PROVISIONS = i686 i386 i586 int64 linux linux_2_6 wifi $(EXTRA_PROVIDES)
+PROVISIONS = i686 i386 i586 analysis int64 linux linux_2_6 wifi $(EXTRA_PROVIDES)
 
 prefix = /usr/local
 exec_prefix = ${prefix}
@@ -120,7 +120,7 @@ elemlist elemlists: click-buildtool
 
 MKELEMMAPFLAGS =
 elementmap.xml: click-buildtool $(srcdir)/click-mkelemmap always
-	echo $(DRIVERS)  app aqm ethernet icmp ip local standard tcpudp threads wifi $(EXTRA_PROVIDES) | $(top_builddir)/click-buildtool findelem -r "$(PROVISIONS) $(DRIVERS)" -p $(top_srcdir) | $(PERL) $(top_srcdir)/click-mkelemmap -r "$(PROVISIONS)" -t "$(DRIVERS)" -p $(top_srcdir) -Iinclude -s "`cd $(top_srcdir) && pwd`" $(MKELEMMAPFLAGS) > elementmap.xml
+	echo $(DRIVERS)  analysis app aqm ethernet icmp ip local standard tcpudp test threads wifi $(EXTRA_PROVIDES) | $(top_builddir)/click-buildtool findelem -r "$(PROVISIONS) $(DRIVERS)" -p $(top_srcdir) | $(PERL) $(top_srcdir)/click-mkelemmap -r "$(PROVISIONS)" -t "$(DRIVERS)" -p $(top_srcdir) -Iinclude -s "`cd $(top_srcdir) && pwd`" $(MKELEMMAPFLAGS) > elementmap.xml
 always:
 	@:
 

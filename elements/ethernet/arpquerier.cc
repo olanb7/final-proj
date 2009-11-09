@@ -4,7 +4,7 @@
  *
  * Copyright (c) 1999-2000 Massachusetts Institute of Technology
  * Copyright (c) 2005 Regents of the University of California
- * Copyright (c) 2008 Meraki, Inc.
+ * Copyright (c) 2008-2009 Meraki, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -31,7 +31,7 @@
 CLICK_DECLS
 
 ARPQuerier::ARPQuerier()
-    : _arpt(0), _my_arpt(false)
+    : _arpt(0), _my_arpt(false), _zero_warned(false)
 {
 }
 
@@ -54,19 +54,22 @@ int
 ARPQuerier::configure(Vector<String> &conf, ErrorHandler *errh)
 {
     uint32_t capacity, entry_capacity;
-    Timestamp timeout;
-    bool have_capacity, have_entry_capacity, have_timeout, have_broadcast;
-    Element *arpt = 0;
+    Timestamp timeout, poll_timeout(60);
+    bool have_capacity, have_entry_capacity, have_timeout, have_broadcast,
+	broadcast_poll = false;
+    _arpt = 0;
     if (cp_va_kparse_remove_keywords(conf, this, errh,
 		"CAPACITY", cpkC, &have_capacity, cpUnsigned, &capacity,
 		"ENTRY_CAPACITY", cpkC, &have_entry_capacity, cpUnsigned, &entry_capacity,
 		"TIMEOUT", cpkC, &have_timeout, cpTimestamp, &timeout,
 		"BROADCAST", cpkC, &have_broadcast, cpIPAddress, &_my_bcast_ip,
-		"TABLE", 0, cpElement, &arpt,
+		"TABLE", 0, cpElementCast, "ARPTable", &_arpt,
+		"POLL_TIMEOUT", 0, cpTimestamp, &poll_timeout,
+		"BROADCAST_POLL", 0, cpBool, &broadcast_poll,
 		cpEnd) < 0)
 	return -1;
 
-    if (!arpt) {
+    if (!_arpt) {
 	Vector<String> subconf;
 	if (have_capacity)
 	    subconf.push_back("CAPACITY " + String(capacity));
@@ -78,8 +81,7 @@ ARPQuerier::configure(Vector<String> &conf, ErrorHandler *errh)
 	_arpt->attach_router(router(), -1);
 	_arpt->configure(subconf, errh);
 	_my_arpt = true;
-    } else if (!(_arpt = static_cast<ARPTable *>(arpt->cast("ARPTable"))))
-	return errh->error("bad TABLE");
+    }
 
     IPAddress my_mask;
     if (conf.size() == 1)
@@ -89,11 +91,19 @@ ARPQuerier::configure(Vector<String> &conf, ErrorHandler *errh)
 		     "ETH", cpkP+cpkM, cpEthernetAddress, &_my_en,
 		     cpEnd) < 0)
 	return -1;
+
     if (!have_broadcast) {
 	_my_bcast_ip = _my_ip | ~my_mask;
 	if (_my_bcast_ip == _my_ip)
 	    _my_bcast_ip = 0xFFFFFFFFU;
     }
+
+    _broadcast_poll = broadcast_poll;
+    if ((uint32_t) poll_timeout.sec() >= (uint32_t) 0xFFFFFFFFU / CLICK_HZ)
+	_poll_timeout_j = 0;
+    else
+	_poll_timeout_j = poll_timeout.jiffies();
+
     return 0;
 }
 
@@ -101,8 +111,9 @@ int
 ARPQuerier::live_reconfigure(Vector<String> &conf, ErrorHandler *errh)
 {
     uint32_t capacity, entry_capacity;
-    Timestamp timeout;
-    bool have_capacity, have_entry_capacity, have_timeout, have_broadcast;
+    Timestamp timeout, poll_timeout(Timestamp::make_jiffies(_poll_timeout_j));
+    bool have_capacity, have_entry_capacity, have_timeout, have_broadcast,
+	broadcast_poll(_broadcast_poll);
     IPAddress my_bcast_ip;
 
     if (cp_va_kparse_remove_keywords(conf, this, errh,
@@ -111,6 +122,8 @@ ARPQuerier::live_reconfigure(Vector<String> &conf, ErrorHandler *errh)
 		"TIMEOUT", cpkC, &have_timeout, cpTimestamp, &timeout,
 		"BROADCAST", cpkC, &have_broadcast, cpIPAddress, &my_bcast_ip,
 		"TABLE", 0, cpIgnore,
+		"POLL_TIMEOUT", 0, cpTimestamp, &poll_timeout,
+		"BROADCAST_POLL", 0, cpBool, &broadcast_poll,
 		cpEnd) < 0)
 	return -1;
 
@@ -141,6 +154,13 @@ ARPQuerier::live_reconfigure(Vector<String> &conf, ErrorHandler *errh)
 	_arpt->set_entry_capacity(entry_capacity);
     if (_my_arpt && have_timeout)
 	_arpt->set_timeout(timeout);
+
+    _broadcast_poll = broadcast_poll;
+    if ((uint32_t) poll_timeout.sec() >= (uint32_t) 0xFFFFFFFFU / CLICK_HZ)
+	_poll_timeout_j = 0;
+    else
+	_poll_timeout_j = poll_timeout.jiffies();
+
     return 0;
 }
 
@@ -178,8 +198,10 @@ ARPQuerier::take_state(Element *e, ErrorHandler *errh)
 }
 
 void
-ARPQuerier::send_query_for(Packet *p)
+ARPQuerier::send_query_for(const Packet *p, bool ether_dhost_valid)
 {
+    // Uses p's IP and Ethernet headers.
+
     static_assert(Packet::default_headroom >= sizeof(click_ether));
     WritablePacket *q = Packet::make(Packet::default_headroom - sizeof(click_ether),
 				     NULL, sizeof(click_ether) + sizeof(click_ether_arp), 0);
@@ -190,7 +212,10 @@ ARPQuerier::send_query_for(Packet *p)
 
     click_ether *e = (click_ether *) q->data();
     q->set_ether_header(e);
-    memset(e->ether_dhost, 0xff, 6);
+    if (ether_dhost_valid && likely(!_broadcast_poll))
+	memcpy(e->ether_dhost, p->ether_header()->ether_dhost, 6);
+    else
+	memset(e->ether_dhost, 0xff, 6);
     memcpy(e->ether_shost, _my_en.data(), 6);
     e->ether_type = htons(ETHERTYPE_ARP);
 
@@ -246,16 +271,14 @@ ARPQuerier::handle_ip(Packet *p, bool response)
 
     // Easy case: requires only read lock
   retry_read_lock:
-    r = _arpt->lookup(dst_ip, dst_eth, 60 * CLICK_HZ);
+    r = _arpt->lookup(dst_ip, dst_eth, _poll_timeout_j);
     if (r >= 0 && !dst_eth->is_broadcast()) {
-	memcpy(&q->ether_header()->ether_shost, _my_en.data(), 6);
-	output(0).push(q);
+	if (r > 0)
+	    send_query_for(q, true);
+	// ... and send packet below.
     } else if (dst_ip.addr() == 0xFFFFFFFFU || dst_ip == _my_bcast_ip) {
-	// Check special IP addresses
-	*dst_eth = EtherAddress::make_broadcast();
-	memcpy(&q->ether_header()->ether_shost, _my_en.data(), 6);
-	output(0).push(q);
-	r = 0;
+	memset(dst_eth, 0xff, 6);
+	// ... and send packet below.
     } else if (dst_ip.is_multicast()) {
 	uint8_t *dst_addr = q->ether_header()->ether_dhost;
 	dst_addr[0] = 0x01;
@@ -265,26 +288,32 @@ ARPQuerier::handle_ip(Packet *p, bool response)
 	dst_addr[3] = (addr >> 16) & 0x7F;
 	dst_addr[4] = addr >> 8;
 	dst_addr[5] = addr;
-	memcpy(&q->ether_header()->ether_shost, _my_en.data(), 6);
-	output(0).push(q);
-	r = 0;
-    } else if (!dst_ip) {
-	static bool zero_warned = false;
-	if (!zero_warned) {
-	    click_chatter("%s: would query for 0.0.0.0; missing dest IP addr annotation?", declaration().c_str());
-	    zero_warned = true;
-	}
-	++_drops;
-	q->kill();
-	r = 0;
+	// ... and send packet below.
     } else {
-	r = _arpt->append_query(dst_ip, q);
-	if (r == -EAGAIN)
-	    goto retry_read_lock;
+	// Zero or unknown address: do not send the packet.
+	if (!dst_ip) {
+	    if (!_zero_warned) {
+		click_chatter("%s: would query for 0.0.0.0; missing dest IP addr annotation?", declaration().c_str());
+		_zero_warned = true;
+	    }
+	    ++_drops;
+	    q->kill();
+	} else {
+	    r = _arpt->append_query(dst_ip, q);
+	    if (r == -EAGAIN)
+		goto retry_read_lock;
+	    if (r > 0)
+		send_query_for(q, false); // q is on the ARP entry's queue
+	    // Do not q->kill() since it is stored in some ARP entry.
+	}
+	return;
     }
 
-    if (r > 0)			// poll
-	send_query_for(q);
+    // It's time to emit the packet with our Ethernet address as source.  (Set
+    // the source address immediately before send in case the user changes the
+    // source address while packets are enqueued.)
+    memcpy(&q->ether_header()->ether_shost, _my_en.data(), 6);
+    output(0).push(q);
 }
 
 /*
@@ -337,13 +366,17 @@ ARPQuerier::read_handler(Element *e, void *thunk)
 {
     ARPQuerier *q = (ARPQuerier *)e;
     switch (reinterpret_cast<uintptr_t>(thunk)) {
-      case h_table:
+    case h_table:
 	return q->_arpt->read_handler(q->_arpt, (void *) (uintptr_t) ARPTable::h_table);
-      case h_stats:
+    case h_stats:
 	return
 	    String(q->_drops.value() + q->_arpt->drops()) + " packets killed\n" +
 	    String(q->_arp_queries.value()) + " ARP queries sent\n";
-      default:
+    case h_count:
+	return String(q->_arpt->count());
+    case h_length:
+	return String(q->_arpt->length());
+    default:
 	return String();
     }
 }
@@ -353,15 +386,15 @@ ARPQuerier::write_handler(const String &str, Element *e, void *thunk, ErrorHandl
 {
     ARPQuerier *q = (ARPQuerier *) e;
     switch (reinterpret_cast<uintptr_t>(thunk)) {
-      case h_insert:
+    case h_insert:
 	return q->_arpt->write_handler(str, q->_arpt, (void *) (uintptr_t) ARPTable::h_insert, errh);
-      case h_delete:
+    case h_delete:
 	return q->_arpt->write_handler(str, q->_arpt, (void *) (uintptr_t) ARPTable::h_delete, errh);
-      case h_clear:
+    case h_clear:
 	q->_arp_queries = q->_drops = q->_arp_responses = 0;
 	q->_arpt->clear();
 	return 0;
-      default:
+    default:
 	return -1;
     }
 }
@@ -371,6 +404,8 @@ ARPQuerier::add_handlers()
 {
     add_read_handler("table", read_handler, h_table);
     add_read_handler("stats", read_handler, h_stats);
+    add_read_handler("count", read_handler, h_count);
+    add_read_handler("length", read_handler, h_length);
     add_data_handlers("queries", Handler::OP_READ, &_arp_queries);
     add_data_handlers("responses", Handler::OP_READ, &_arp_responses);
     add_data_handlers("drops", Handler::OP_READ, &_drops);
