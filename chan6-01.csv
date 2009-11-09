@@ -1,9 +1,0 @@
-
-BSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, Power, # beacons, # IV, LAN IP, ID-length, ESSID, Key
-00:40:05:B2:BB:01, 2009-09-08 15:32:49, 2009-09-08 15:33:03,  6,  11, WEP , WEP,   ,  24,      129,       10,   0.  0.  0.  0,   7, Ashby 9, 
-00:1F:33:C8:68:82, 2009-09-08 15:32:49, 2009-09-08 15:33:03,  6,  54, WEP , WEP,   ,  35,       95,        0,   0.  0.  0.  0,   8, crack-me, 
-
-Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs
-00:1C:26:20:D8:78, 2009-09-08 15:32:51, 2009-09-08 15:32:53,  15,       10, (not associated) , BTHomeHub-7588,tempo
-00:13:CE:8D:4A:1A, 2009-09-08 15:33:02, 2009-09-08 15:33:02,  71,        1, 00:1A:70:EB:74:B9,
-
