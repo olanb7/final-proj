@@ -1,0 +1,6 @@
+
+BSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, Power, # beacons, # IV, LAN IP, ID-length, ESSID, Key
+
+Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs
+00:22:5F:09:75:55, 2009-09-08 15:33:24, 2009-09-08 15:33:24,  54,        2, (not associated) ,
+

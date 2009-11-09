@@ -1,0 +1,7 @@
+
+BSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, Power, # beacons, # IV, LAN IP, ID-length, ESSID, Key
+00:40:05:B2:BB:01, 2009-09-08 15:33:34, 2009-09-08 15:33:48,  6,  11, WEP , WEP,   ,  21,      119,        0,   0.  0.  0.  0,   7, Ashby 9, 
+00:1F:33:C8:68:82, 2009-09-08 15:33:34, 2009-09-08 15:33:48,  6,  54, WEP , WEP,   ,  34,      105,        0,   0.  0.  0.  0,   8, crack-me, 
+
+Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs
+

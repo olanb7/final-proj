@@ -1,0 +1,28 @@
+%info
+Test that private handlers are hidden from ControlSocket.
+
+%script
+msleep () {
+   click -e "DriverManager(wait $1ms)"
+}
+
+(msleep 40 && nc localhost 41930 <CSIN >CSOUT) &
+click -p 41930 -e 's :: Script(print "SCARY => $(cat SCARY)", wait 3s, stop)'
+
+%file CSIN
+read s.add 1 1
+read s.cat SCARY
+write stop
+
+%file SCARY
+This is a scary file!
+
+%expect CSOUT
+Click::ControlSocket/1.{{\d+}}
+200 Read handler{{.*}}
+DATA 1
+2511 No handler named 's.cat'
+200 Write handler 'stop' OK
+
+%expect stdout
+SCARY => This is a scary file!

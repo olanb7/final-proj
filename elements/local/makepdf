@@ -1,0 +1,6 @@
+#! /bin/bash
+
+for ps_file in *.ps; do
+base=${ps_file%%.*}
+gs -q -dBATCH -dAutoFilterColorImages=false -sColorImageFilter=FlateEncode -dNOPAUSE -sDEVICE=pdfwrite -sOutputFile=${base}.pdf ${ps_file}
+done
