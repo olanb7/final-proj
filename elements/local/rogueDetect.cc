@@ -567,7 +567,7 @@ RogueDetect::push(int, Packet *p) {
 	log << "\n";
 	#if CLICK_USERLEVEL
 	// logOutput(*sta, log);
-	log = "";
+	log.clear();
 	#endif
 	
 	push:
