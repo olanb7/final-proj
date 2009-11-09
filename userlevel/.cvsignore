@@ -1,0 +1,2 @@
+Makefile *.d click
+elements.conf elements.mk elements.cc
