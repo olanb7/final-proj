@@ -194,7 +194,7 @@ void Basic::keepTrack(station &sta){
 void
 Basic::push(int, Packet *p) {
 
-	StringAccum log, fn;
+	StringAccum fn/*, log*/;
 
 	struct click_wifi *w = (struct click_wifi *) p->data();
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
@@ -215,14 +215,14 @@ Basic::push(int, Packet *p) {
 			sta_dupe->rssi = sta->rssi;
 			keepTrack(*sta_dupe);
 
-			log <<	*sta_dupe->time	<< "\t";
-			log <<	sta_dupe->rssi	<< "\t";		
+			//log <<	*sta_dupe->time	<< "\t";
+			//log <<	sta_dupe->rssi	<< "\t";		
 
 			if (sta_dupe->flag == 1) {
-				log <<	sta_dupe->ema	<< "\t";
-				log <<	sta_dupe->var	<< "\t";
-				log <<	sta_dupe->pps	<< "\t";
-				//log <<	sta_dupe->stddev << "\t";
+				//log <<	sta_dupe->ema	<< "\t";
+				//log <<	sta_dupe->var	<< "\t";
+				//log <<	sta_dupe->pps	<< "\t";
+				// //log <<	sta_dupe->stddev << "\t";
 				sta_dupe->flag = 0;
 			}
 			//sta_dupe->_size.update(sta_dupe->rssi);
@@ -233,8 +233,8 @@ Basic::push(int, Packet *p) {
 			sta->first_run = 1;
 			keepTrack(*sta);
 
-			log << *sta->time << "\t";
-			log << sta->rssi << "\t";
+			//log << *sta->time << "\t";
+			//log << sta->rssi << "\t";
 
 			_sta_list.push_back(sta);
 		}
@@ -245,18 +245,19 @@ Basic::push(int, Packet *p) {
 		sta->first_run = 1;
 		keepTrack(*sta);
 
-		log << *sta->time << "\t";
-		log << sta->rssi << "\t";
+		//log << *sta->time << "\t";
+		//log << sta->rssi << "\t";
 
 		_sta_list.push_back(sta);
 	}
 
 	
-	log << "\n";
-	
-	// log packets to file*/
-	#if CLICK_USERLEVEL
-	/*fn << "/home/olan/logs/" << sta->mac->unparse().c_str() << ".txt";
+	//log << "\n";
+	//log.clear();
+
+	// log packets to file
+	/*#if CLICK_USERLEVEL
+	fn << "/home/olan/logs/" << sta->mac->unparse().c_str() << ".txt";
 	_filename = fn.take_string();
 
 	if (_filename) {
@@ -273,8 +274,8 @@ Basic::push(int, Packet *p) {
   	if (_logfile)
   		fclose(_logfile);
 	_logfile = 0;
-	#endif
-	*/
+	
+	#endif*/
 	output(0).push(p);
 }
 
