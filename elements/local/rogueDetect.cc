@@ -193,7 +193,7 @@ void RogueDetect::getStats (StationList &l) {
 		getBeaconAverage(*sta, 3);
 
 		// beacon rate attack detector
-		if ( sta->beacon_ave > ( int(1000/sta->beacon_int) + error )) {
+		/*if ( sta->beacon_ave > 1000/sta->beacon_int ) {
 			if (sta->beacon_attack >= 1)
 				sta->beacon_attack++;
 			else
@@ -201,7 +201,8 @@ void RogueDetect::getStats (StationList &l) {
 		}
 		else {
 			sta->beacon_attack = 0;
-		}
+		}*/
+		sta->beacon_attack = 0;
 
 		// variance attack detector
 		if (sta->longVar > 20) {
@@ -482,10 +483,10 @@ RogueDetect::push(int, Packet *p) {
 				duplicate->mactime = (u_int64_t) ceha->tsft;
 			}
 
-			if (duplicate->rssi > 50) {
+			/*if (duplicate->rssi > 50) {
 				click_chatter("High RSSI %s: %d", \
 						duplicate->mac->unparse_colon().c_str(), duplicate->rssi);
-			}
+			}*/
 
 			// time | rssi | shortVariance | Beacon Jitter| longVariance | RSSI EWMA | Beacon Rate
 			log << *duplicate->time	<< "\t";
